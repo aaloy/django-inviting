@@ -193,7 +193,7 @@ class Invitation(models.Model):
         })
         msg = EmailMessage(subject, message, settings.DEFAULT_FROM_EMAIL,
                 [email, ])
-        msg.content_subtype = "html"
+        msg.content_subtype = app_settings.EMAIL_CONTENT_TYPE 
         msg.send()
         #send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [email])
         signals.invitation_sent.send(sender=self)

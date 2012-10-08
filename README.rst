@@ -60,6 +60,9 @@ settings:
     A ``float`` that determines which users are rewarded. Default value
     is ``0.75``.
 
+:INVITATION_CONTENT_TYPE:
+    Lets you choose if you want to send the e-mail in plain text format (the
+    default) or html_
 
 See Also
 ========
