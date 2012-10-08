@@ -189,6 +189,7 @@ class Invitation(models.Model):
         message = render_to_string('invitation/invitation_email.txt', {
             'invitation': self,
             'expiration_days': app_settings.EXPIRE_DAYS,
+            'STATIC_URL': settings.STATIC_URL,
             'site': site
         })
         msg = EmailMessage(subject, message, settings.DEFAULT_FROM_EMAIL,
