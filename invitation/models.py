@@ -1,7 +1,7 @@
 import datetime
 import random
 from django.db import models
-from django.core.mail import send_mail
+from django.core.mail import EmailMessage
 from django.conf import settings
 from django.template.loader import render_to_string
 from django.utils.translation import ugettext_lazy as _
@@ -191,7 +191,11 @@ class Invitation(models.Model):
             'expiration_days': app_settings.EXPIRE_DAYS,
             'site': site
         })
-        send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [email])
+        msg = EmailMessage(subject, message, settings.DEFAULT_FROM_EMAIL,
+                [email, ])
+        msg.content_subtype = "html"
+        msg.send()
+        #send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [email])
         signals.invitation_sent.send(sender=self)
 
     def mark_accepted(self, new_user):

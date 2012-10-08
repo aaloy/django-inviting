@@ -1,3 +1,7 @@
+#!/usr/bin/env python
+# encoding: utf-8
+# ----------------------------------------------------------------------------
+
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.utils.importlib import import_module
@@ -24,3 +28,4 @@ EXPIRE_DAYS = getattr(settings, 'INVITATION_EXPIRE_DAYS', 15)
 INITIAL_INVITATIONS = getattr(settings, 'INVITATION_INITIAL_INVITATIONS', 10)
 REWARD_THRESHOLD = getattr(settings, 'INVITATION_REWARD_THRESHOLD', 0.75)
 PERFORMANCE_FUNC = get_performance_func(settings)
+EMAIL_CONTENT_TYPE = getattr(settings, 'INVITATION_CONTENT_TYPE', 'text/plain')
