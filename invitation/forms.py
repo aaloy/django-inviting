@@ -1,29 +1,33 @@
 from django import forms
 from django.contrib.auth.models import User
-from registration.forms import RegistrationForm
+from . import app_settings
 
 
-def save_user(form_instance):
+def save_user(form_instance, profile_callback=None):
     """
     Create a new **active** user from form data.
 
     This method is intended to replace the ``save`` of
-    ``django-registration``s ``RegistrationForm``. Required form fields
+    ``django-registration``s ``RegistrationForm``. Calls
+    ``profile_callback`` if provided. Required form fields
     are ``username``, ``email`` and ``password1``.
     """
-    username = form_instance.cleaned_data['username']
-    email = form_instance.cleaned_data['email']
+    
     password = form_instance.cleaned_data['password1']
-    new_user = User.objects.create_user(username, email, password)
-    new_user.save()
-    return new_user
+    create_user_func = getattr(app_settings, 'AUTH_CREATE_USER_FUNC')
+    if isinstance(create_user_func, basestring):
+        create_user_func = app_settings.get_module_object(create_user_func)
+    if create_user_func:
+        new_user = create_user_func(password=password,
+                                    **form_instance.cleaned_data)
+        return new_user
 
 
 class InvitationForm(forms.Form):
     email = forms.EmailField()
 
 
-class RegistrationFormInvitation(RegistrationForm):
+class RegistrationFormInvitation(app_settings.get_registration_form()):
     """
     Subclass of ``registration.RegistrationForm`` that create an **active**
     user.

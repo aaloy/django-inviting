@@ -8,9 +8,17 @@ from django.utils.translation import ugettext_lazy as _
 from django.utils.hashcompat import sha_constructor
 from django.contrib.auth.models import User
 from django.contrib.sites.models import Site, RequestSite
-import app_settings
-import signals
+from . import app_settings
+from . import signals
 
+try:
+    from django.utils.timezone import now
+except ImportError:
+    now = datetime.datetime.now
+
+
+def get_deleted_user():
+    return User.objects.get_or_create(username='DeletedUser')[0]
 
 def performance_calculator_invite_only(invitation_stats):
     """Calculate a performance score between ``0.0`` and ``1.0``.
@@ -53,6 +61,12 @@ class InvitationManager(models.Manager):
         """
         invitation = None
         try:
+            # If emails are unique, then don't allow invites to emails which
+            # are already in the system.
+            if app_settings.UNIQUE_EMAIL:
+                if User.objects.filter(email__iexact=email):
+                    raise InvitationError(_('This email is already in by a user. Please supply a different email.'))
+            
             # It is possible that there is more than one invitation fitting
             # the criteria. Normally this means some older invitations are
             # expired or an email is invited consequtively.
@@ -85,16 +99,19 @@ class InvitationManager(models.Manager):
         except IndexError:
             raise Invitation.DoesNotExist
         if not invitation.is_valid():
-            invitation.delete()
+            if app_settings.RECORD_INVITES:
+                invitation.delete()
             raise Invitation.DoesNotExist
         return invitation
 
     def valid(self):
         """Filter valid invitations.
         """
-        expiration = datetime.datetime.now() - datetime.timedelta(
-                                                     app_settings.EXPIRE_DAYS)
-        return self.get_query_set().filter(date_invited__gte=expiration)
+        expiration = now() - datetime.timedelta(app_settings.EXPIRE_DAYS)
+        qs = self.get_query_set().filter(date_invited__gte=expiration)
+        if app_settings.RECORD_INVITES:
+            qs = qs.filter(invitee__id__exact=None)
+        return qs
 
     def invalid(self):
         """Filter invalid invitation.
@@ -109,7 +126,10 @@ class Invitation(models.Model):
     email = models.EmailField(_(u'e-mail'))
     key = models.CharField(_(u'invitation key'), max_length=40, unique=True)
     date_invited = models.DateTimeField(_(u'date invited'),
-                                        default=datetime.datetime.now)
+                                        default=now)
+    if app_settings.RECORD_INVITES:
+        invitee = models.OneToOneField(User, related_name='invite', null=True,
+                                       on_delete=models.SET(get_deleted_user))
 
     objects = InvitationManager()
 
@@ -210,7 +230,11 @@ class Invitation(models.Model):
         signals.invitation_accepted.send(sender=self,
                                          inviting_user=self.user,
                                          new_user=new_user)
-        self.delete()
+        if app_settings.RECORD_INVITES:
+            self.invitee = new_user
+            self.save()
+        else:
+            self.delete()
     mark_accepted.alters_data = True
 
 
@@ -298,11 +322,10 @@ class InvitationStats(models.Model):
         :count:
             Number of invitations to mark used. Default is ``1``.
         """
-        if app_settings.INVITE_ONLY:
-            if self.available - count >= 0:
-                self.available = models.F('available') - count
-            else:
-                raise InvitationError('No available invitations.')
+        if self.available - count >= 0:
+            self.available = models.F('available') - count
+        else:
+            raise InvitationError('No available invitations.')
         self.sent = models.F('sent') + count
         self.save()
     use.alters_data = True
@@ -323,6 +346,8 @@ class InvitationStats(models.Model):
             raise InvitationError('There can\'t be more accepted ' \
                                   'invitations than sent invitations.')
         self.accepted = models.F('accepted') + count
+        if app_settings.REPOPULATE_ACCEPTED:
+            self.available = models.F('available') + count
         self.save()
     mark_accepted.alters_data = True
 
